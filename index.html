@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JWT Decoder — Glymph Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0a;--line:#1a1a1a;--line2:#222;--white:#fff;--gray:#9a9a9a;--dim:#4a4a4a;--muted:#555;--red:#ff4d4d;--green:#4ade80;--yellow:#d4c36a;--red-bg:#130707;--red-line:#4a1e1e}
+html,body{background:var(--bg);color:var(--white);font-family:'JetBrains Mono',monospace;-webkit-font-smoothing:antialiased;min-height:100vh}
+body.is-expired{background:var(--red-bg)}
+body.is-expired .brand{color:var(--red)}
+a{color:#666;text-decoration:none;border-bottom:1px solid #222}
+a:hover{color:#fff;border-color:#fff}
+.app{max-width:920px;margin:0 auto;padding:28px 24px 140px 24px}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);gap:16px;flex-wrap:wrap}
+.brand{font-size:12px;letter-spacing:0.28em;font-weight:500}
+.alg-badge{font-size:11px;letter-spacing:0.04em;color:#666;border:1px solid var(--line2);padding:7px 12px;min-height:30px;display:flex;align-items:center;gap:10px;white-space:nowrap;flex-wrap:wrap}
+.alg-badge b{color:#fff;font-weight:500;letter-spacing:0.08em}
+.alg-badge .note{color:#3a3a3a;font-size:10px;letter-spacing:0.02em}
+.alg-badge.warn{border-color:#5a3a1a;background:#1a150a;color:#d4a76a}
+.alg-badge.warn b{color:#ff9a3b}
+body.is-expired .alg-badge{border-color:#5a2222;color:#ff6b6b;background:#1a0a0a}
+body.is-expired .alg-badge b{color:#ff6b6b}
+.expired-banner{display:none;margin-top:18px;border:1px solid #5a1e1e;background:#1a0a0a;color:var(--red);font-size:11px;letter-spacing:0.14em;padding:12px 16px;text-align:center;line-height:1.6}
+.nbf-banner{display:none;margin-top:12px;border:1px solid #4a3a1a;background:#1a160a;color:var(--yellow);font-size:11px;letter-spacing:0.12em;padding:10px 14px;text-align:center}
+body.is-expired .expired-banner{display:block}
+body.is-nbf .nbf-banner{display:block}
+.editor-section{margin-top:32px}
+.editor-label{font-size:10px;letter-spacing:0.2em;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase;gap:12px;flex-wrap:wrap}
+.editor-actions{display:flex;gap:8px}
+.mini-btn{background:transparent;border:1px solid var(--line2);color:#444;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;padding:5px 10px;cursor:pointer}
+.mini-btn:hover{border-color:#444;color:#fff}
+.editor-wrap{position:relative;border:1px solid var(--line2);background:var(--bg);min-height:168px;overflow:hidden}
+.editor-wrap:focus-within{border-color:#333}
+.editor-wrap.is-malformed{border-color:#5a1e1e;background:#150a0a}
+.editor-wrap.is-drag{border-color:#666;background:#111}
+body.is-expired .editor-wrap{border-color:#5a2222;background:#160a0a}
+.backdrop{position:absolute;inset:0;padding:16px;font-size:13px;line-height:1.75;white-space:pre-wrap;word-break:break-all;overflow:hidden;pointer-events:none;color:#fff;overflow-wrap:break-word}
+.backdrop .tok-header{color:#ffffff}
+.backdrop .tok-payload{color:#9a9a9a}
+.backdrop .tok-sig{color:#4a4a4a}
+.backdrop .tok-dot{color:#2a2a2a}
+#tokenInput{position:absolute;inset:0;width:100%;height:100%;padding:16px;font-size:13px;line-height:1.75;font-family:'JetBrains Mono',monospace;background:transparent;color:transparent;caret-color:#fff;border:none;resize:none;outline:none;white-space:pre-wrap;word-break:break-all;overflow:auto;z-index:1;overflow-wrap:break-word}
+#tokenInput::selection{background:rgba(255,255,255,0.16)}
+#tokenInput::-webkit-scrollbar{width:5px;height:5px}
+#tokenInput::-webkit-scrollbar-thumb{background:#222}
+.cursor-blink{display:inline-block;width:8px;height:14px;background:#fff;vertical-align:text-bottom;margin-left:2px;animation:blink 1s steps(2,start) infinite}
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+.editor-meta{display:flex;justify-content:space-between;align-items:flex-start;margin-top:10px;font-size:10px;letter-spacing:0.06em;color:#333;min-height:14px;gap:12px;flex-wrap:wrap}
+.editor-meta .error{color:var(--red);letter-spacing:0.08em;text-transform:uppercase;line-height:1.5}
+.editor-meta .count{color:#2a2a2a;white-space:nowrap;text-align:right}
+.editor-meta .hint{color:#2a2a2a}
+.stats{margin-top:14px;border-top:1px dashed #1a1a1a;padding-top:10px;display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:#333;letter-spacing:0.04em}
+.stats b{color:#444;font-weight:500}
+.timeline{margin-top:22px;border:1px solid var(--line);padding:12px 14px;display:none}
+.timeline.show{display:block}
+.timeline-title{font-size:10px;letter-spacing:0.18em;color:#444;margin-bottom:12px}
+.timeline-bar{position:relative;height:28px;border:1px solid #1e1e1e;background:#0f0f0f;display:flex;align-items:center;padding:0 2px}
+.timeline-fill{position:absolute;left:2px;top:2px;bottom:2px;background:#1a2a1a;border:1px solid #1e3a1e}
+body.is-expired .timeline-fill{background:#2a1a1a;border-color:#4a1e1e}
+.timeline-now{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;z-index:2}
+.timeline-now::after{content:'NOW';position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:0.1em;color:#fff;background:#0a0a0a;padding:0 4px;border:1px solid #333}
+.timeline-labels{display:flex;justify-content:space-between;margin-top:8px;font-size:9px;color:#333;letter-spacing:0.04em}
+.timeline-labels b{color:#555}
+.sections{margin-top:40px;border-top:1px solid var(--line)}
+.section{border-bottom:1px solid var(--line);padding:26px 0}
+body.is-expired .section{border-bottom-color:#2a1212}
+body.is-expired .sections{border-top-color:#2a1212}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.section-title{font-size:11px;letter-spacing:0.2em;color:#555}
+.section-actions{display:flex;gap:8px}
+.copy-btn{background:transparent;border:1px solid var(--line2);color:#555;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;padding:6px 12px;cursor:pointer}
+.copy-btn:hover{border-color:#444;color:#fff}
+.copy-btn.copied{border-color:#fff;color:#fff}
+body.is-expired .copy-btn{border-color:#3a1a1a;color:#6a3a3a}
+body.is-expired .copy-btn:hover{border-color:#6a2a2a;color:#ffaaaa}
+.json-view{font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;color:#d0d0d0}
+.sig-view{font-size:12px;line-height:1.7;color:#555;word-break:break-all;white-space:pre-wrap;letter-spacing:0.02em}
+.sig-note{margin-top:16px;font-size:11px;color:#333;letter-spacing:0.02em;line-height:1.5}
+.json-tree{font-size:13px;line-height:1.75}
+.json-line{white-space:pre-wrap;word-break:break-word}
+.claim-explain{font-size:11px;color:#555;margin-left:24px;margin-top:3px;padding-left:12px;border-left:1px solid #1e1e1e;letter-spacing:0.01em;line-height:1.5}
+body.is-expired .claim-explain{border-left-color:#2a1a1a}
+.claim-badge{display:inline-block;font-size:10px;letter-spacing:0.08em;padding:4px 8px;border:1px solid;margin-top:8px;line-height:1}
+.badge-valid{background:#0a150a;border-color:#1e3a1e;color:var(--green)}
+.badge-expired{background:#1a0a0a;border-color:#4a1e1e;color:var(--red)}
+.badge-nbf{background:#15150a;border-color:#3a351e;color:var(--yellow)}
+.malformed-box{border:1px solid #4a1a1a;background:#1a0a0a;color:#ff6b6b;padding:12px 14px;font-size:11px;letter-spacing:0.02em;line-height:1.6}
+.privacy-badge{position:fixed;bottom:20px;right:20px;background:var(--bg);border:1px solid var(--line2);color:#555;font-size:11px;letter-spacing:0.02em;padding:10px 14px;z-index:20;max-width:90vw;line-height:1.4}
+body.is-expired .privacy-badge{border-color:#4a2222;background:#160a0a;color:#ff6b6b}
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);font-size:11px;color:#2e2e2e;text-align:center;letter-spacing:0.03em;line-height:1.6}
+footer a{color:#444;border-bottom:1px solid #1e1e1e}
+footer a:hover{color:#fff;border-color:#fff}
+.competitor-note{margin-top:48px;border:1px dashed #1e1e1e;padding:14px;font-size:10px;color:#333;line-height:1.7;letter-spacing:0.02em}
+.competitor-note b{color:#555}
+@media(max-width:700px){
+.app{padding:18px 14px 100px 14px}
+.backdrop,#tokenInput{font-size:12px;padding:12px;line-height:1.7}
+.topbar{padding:12px 0}
+.alg-badge{font-size:10px;padding:6px 10px}
+.privacy-badge{left:0;right:0;bottom:0;border-left:none;border-right:none;border-bottom:none;text-align:center;font-size:10px;padding:12px 10px;background:#0a0a0a}
+.json-tree,.json-view{font-size:12px}
+.section{padding:20px 0}
+.stats{flex-direction:column;gap:6px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">JWT DECODER</div>
+    <div class="alg-badge" id="algBadge">ALG: — <span class="note">Signature cannot be verified client-side</span></div>
+  </div>
+  <div class="expired-banner" id="expiredBanner">⚠ TOKEN EXPIRED — VALIDATION FAILED · TIME EXCEEDED — UI IN RED-TINTED STATE</div>
+  <div class="nbf-banner" id="nbfBanner">⚠ NOT YET VALID — nbf IN FUTURE</div>
+
+  <div class="editor-section">
+    <div class="editor-label">
+      <span>INPUT TOKEN — PASTE JWT (BEARER AUTO-STRIPPED)</span>
+      <div class="editor-actions">
+        <button class="mini-btn" id="pasteBtn">PASTE</button>
+        <button class="mini-btn" id="clearBtn">CLEAR</button>
+        <span>LIVE</span>
+      </div>
+    </div>
+    <div class="editor-wrap" id="editorWrap">
+      <div class="backdrop" id="backdrop"></div>
+      <textarea id="tokenInput" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" autofocus aria-label="JWT token input" placeholder=" "></textarea>
+    </div>
+    <div class="editor-meta">
+      <div>
+        <div class="error" id="errorMsg"></div>
+        <div class="hint" id="hintMsg">Supports Bearer prefix, whitespace, drag & drop, URL hash share</div>
+      </div>
+      <span class="count" id="charCount"></span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="timeline" id="timeline">
+      <div class="timeline-title">TIMELINE — iat → now → exp</div>
+      <div class="timeline-bar" id="timelineBar">
+        <div class="timeline-fill" id="timelineFill"></div>
+        <div class="timeline-now" id="timelineNow"></div>
+      </div>
+      <div class="timeline-labels" id="timelineLabels"></div>
+    </div>
+  </div>
+
+  <div class="sections">
+    <section class="section" id="headerSection">
+      <div class="section-head">
+        <span class="section-title">HEADER</span>
+        <div class="section-actions">
+          <button class="copy-btn" data-copy="header" aria-label="Copy header JSON">COPY JSON</button>
+          <button class="copy-btn" data-copy="header-raw" aria-label="Copy header raw">COPY RAW</button>
+        </div>
+      </div>
+      <pre class="json-view" id="headerView">{}</pre>
+    </section>
+    <section class="section" id="payloadSection">
+      <div class="section-head">
+        <span class="section-title">PAYLOAD</span>
+        <div class="section-actions">
+          <button class="copy-btn" data-copy="payload" aria-label="Copy payload JSON">COPY JSON</button>
+          <button class="copy-btn" data-copy="payload-raw" aria-label="Copy payload raw">COPY RAW</button>
+        </div>
+      </div>
+      <div class="json-view" id="payloadView"></div>
+    </section>
+    <section class="section" id="sigSection">
+      <div class="section-head">
+        <span class="section-title">SIGNATURE</span>
+        <div class="section-actions">
+          <button class="copy-btn" data-copy="signature" aria-label="Copy signature">COPY</button>
+        </div>
+      </div>
+      <pre class="sig-view" id="sigView"></pre>
+      <div class="sig-note">Signature cannot be verified client-side — displayed as raw base64url. Verification requires secret / public key on server. ALG none → no signature, token is unsigned.</div>
+    </section>
+  </div>
+
+  <div class="competitor-note">
+    <b>WHY THIS BEATS jwt.io / jwt.ms / token.dev:</b><br>
+    • No tracking, no server, no localStorage — 100% client side, sticky privacy proof<br>
+    • Input highlights header (white) / payload (gray) / signature (dim) live as you type — jwt.io doesn't<br>
+    • Plain-English claim explanations BELOW value + live VALID/EXPIRED badges with countdown — jwt.ms hides in tooltips<br>
+    • Full UI red-tint on expired — unmissable, vs tiny red text elsewhere<br>
+    • Terminal aesthetic, single HTML file, 20KB, instant load — vs heavy React apps<br>
+    • Bearer prefix auto-strip, drag & drop, URL hash share, timeline visualization, raw+JSON copy — competitors miss several<br>
+    • Zero animations except cursor blink, #0a0a0a true black, JetBrains Mono, thin lines only
+  </div>
+
+  <footer>Built by Glymph Studio · <a href="http://glymph.vercel.app" target="_blank" rel="noopener">glymph.vercel.app</a></footer>
+</div>
+
+<div class="privacy-badge">🔒 Decoded entirely in your browser. Nothing is sent anywhere.</div>
+
+<script>
+const EXAMPLE_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfOWYzazJsIiwibmFtZSI6IkFsZXggUml2ZXJhIiwiaXNzIjoiZ2x5bXBoLnN0dWRpbyIsImF1ZCI6ImFwaS5nbHltcGguc3R1ZGlvIiwiaWF0IjoxNzE4MzIwMDAwLCJuYmYiOjE3MTgzMjAwMDAsImV4cCI6MTg5MzQ1NjAwMCwicm9sZSI6ImFkbWluIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+
+const $ = id => document.getElementById(id);
+const tokenInput = $('tokenInput');
+const backdrop = $('backdrop');
+const headerView = $('headerView');
+const payloadView = $('payloadView');
+const sigView = $('sigView');
+const algBadge = $('algBadge');
+const errorMsg = $('errorMsg');
+const charCount = $('charCount');
+const editorWrap = $('editorWrap');
+const statsEl = $('stats');
+const timeline = $('timeline');
+const timelineFill = $('timelineFill');
+const timelineNow = $('timelineNow');
+const timelineLabels = $('timelineLabels');
+const hintMsg = $('hintMsg');
+const expiredBanner = $('expiredBanner');
+const nbfBanner = $('nbfBanner');
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function stripBearer(t){
+  // remove Bearer prefix, whitespace, line breaks
+  let s = String(t).trim();
+  s = s.replace(/^\s*Bearer\s+/i,'');
+  // also handle if pasted as Authorization: Bearer ...
+  s = s.replace(/^Authorization:\s*Bearer\s+/i,'');
+  return s.trim();
+}
+function cleanToken(t){
+  // remove all whitespace (including newlines) for parsing, but keep original for display?
+  // We keep original for backdrop but parse cleaned
+  return stripBearer(t).replace(/\s+/g,'');
+}
+function b64UrlDecode(str){
+  let s = str.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = s.length % 4;
+  if(pad) s += '='.repeat(4-pad);
+  try{
+    const bin = atob(s);
+    try{
+      const bytes = Uint8Array.from(bin, c=>c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }catch{
+      try{return decodeURIComponent(bin.split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));}catch{return bin;}
+    }
+  }catch{throw new Error('base64');}
+}
+function parseJwt(token){
+  const raw = token;
+  const bearerStripped = stripBearer(raw);
+  const hadBearer = bearerStripped.length !== raw.trim().length && /bearer/i.test(raw);
+  const cleaned = bearerStripped.replace(/\s+/g,'');
+  if(!cleaned) { const e=new Error('empty'); e.hadBearer=hadBearer; throw e; }
+  const parts = cleaned.split('.');
+  if(parts.length!==3){
+    const e=new Error(parts.length<3?`malformed — expected 3 parts, got ${parts.length}`:`malformed — too many dots (${parts.length} parts)`);
+    e.hadBearer=hadBearer; e.parts=parts.length; throw e;
+  }
+  const re = /^[A-Za-z0-9_-]+$/;
+  const reSig = /^[A-Za-z0-9_-]*$/; // allow empty for alg:none
+  if(!(parts[0].length>0 && re.test(parts[0]) && parts[1].length>0 && re.test(parts[1]) && reSig.test(parts[2]))){
+    const e=new Error('malformed — invalid base64url characters'); e.hadBearer=hadBearer; throw e;
+  }
+  let hStr,pStr;
+  try{hStr=b64UrlDecode(parts[0]);}catch{ const e=new Error('malformed — header not base64url'); e.hadBearer=hadBearer; throw e;}
+  try{pStr=b64UrlDecode(parts[1]);}catch{ const e=new Error('malformed — payload not base64url'); e.hadBearer=hadBearer; throw e;}
+  let header,payload;
+  try{header=JSON.parse(hStr);}catch{ const e=new Error('malformed — header not JSON'); e.hadBearer=hadBearer; throw e;}
+  try{payload=JSON.parse(pStr);}catch{ const e=new Error('malformed — payload not JSON'); e.hadBearer=hadBearer; throw e;}
+  if(typeof header!=='object'||typeof payload!=='object'||!header||!payload){ const e=new Error('malformed — not objects'); e.hadBearer=hadBearer; throw e;}
+  return {header,payload,signature:parts[2],parts,cleaned,hadBearer,rawBearer:raw};
+}
+function fmtDate(ts){
+  if(typeof ts!=='number') return String(ts);
+  const d=new Date(ts*1000);
+  if(isNaN(d)) return String(ts);
+  const local=d.toLocaleString('en-US',{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const iso=d.toISOString().replace('T',' ').slice(0,19)+' UTC';
+  return `${local} — ${iso}`;
+}
+function fmtRel(ts){
+  const now=Date.now();
+  const diff=ts*1000-now;
+  const abs=Math.abs(diff);
+  const s=Math.floor(abs/1000)%60;
+  const m=Math.floor(abs/60000)%60;
+  const h=Math.floor(abs/3600000)%24;
+  const days=Math.floor(abs/86400000);
+  const parts=[];
+  if(days) parts.push(days+'d');
+  if(h||days) parts.push(h+'h');
+  if(m||h||days) parts.push(m+'m');
+  parts.push(s+'s');
+  const str=parts.join(' ');
+  return diff>0?`in ${str}`:`${str} ago`;
+}
+function renderBackdrop(raw){
+  if(!raw){
+    backdrop.innerHTML='<span style="color:#1e1e1e">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMifQ.signature</span> <span class="cursor-blink"></span>';
+    return;
+  }
+  const stripped = stripBearer(raw);
+  const t = stripped.trim();
+  if(!t){
+    backdrop.innerHTML='<span style="color:#222">paste jwt here…</span> <span class="cursor-blink"></span>';
+    return;
+  }
+  // For backdrop we show cleaned token without whitespace but keep dot separation
+  const cleaned = t.replace(/\s+/g,'');
+  const parts=cleaned.split('.');
+  if(parts.length===1){
+    backdrop.innerHTML=`<span class="tok-header">${esc(parts[0])}</span>`;
+  }else if(parts.length===2){
+    backdrop.innerHTML=`<span class="tok-header">${esc(parts[0])}</span><span class="tok-dot">.</span><span class="tok-payload">${esc(parts[1])}</span>`;
+  }else if(parts.length===3){
+    backdrop.innerHTML=`<span class="tok-header">${esc(parts[0])}</span><span class="tok-dot">.</span><span class="tok-payload">${esc(parts[1])}</span><span class="tok-dot">.</span><span class="tok-sig">${esc(parts[2])}</span>`;
+  }else{
+    backdrop.innerHTML=`<span class="tok-header">${esc(parts[0])}</span><span class="tok-dot">.</span><span class="tok-payload">${esc(parts[1])}</span><span class="tok-dot">.</span><span class="tok-sig">${esc(parts[2])}</span><span style="color:#ff4d4d">.${esc(parts.slice(3).join('.'))}</span>`;
+  }
+}
+function renderPayload(payload, container){
+  container.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.className='json-tree';
+  const open=document.createElement('div');
+  open.textContent='{'; open.style.color='#2a2a2a';
+  wrap.appendChild(open);
+  const keys=Object.keys(payload);
+  keys.forEach((k,i)=>{
+    const v=payload[k];
+    const lineWrap=document.createElement('div');
+    lineWrap.style.paddingLeft='20px';
+    const line=document.createElement('div');
+    line.className='json-line';
+    const kSpan=document.createElement('span'); kSpan.textContent=`"${k}"`; kSpan.style.color='#fff';
+    const colon=document.createElement('span'); colon.textContent=': '; colon.style.color='#333';
+    const vSpan=document.createElement('span');
+    if(typeof v==='string'){vSpan.textContent=`"${v}"`;vSpan.style.color='#9a9a9a';}
+    else if(typeof v==='number'){vSpan.textContent=String(v);vSpan.style.color='#e6e6e6';}
+    else if(typeof v==='boolean'){vSpan.textContent=String(v);vSpan.style.color='#777';}
+    else if(v===null){vSpan.textContent='null';vSpan.style.color='#555';}
+    else{vSpan.textContent=JSON.stringify(v);vSpan.style.color='#888';}
+    const comma=document.createElement('span'); comma.textContent=i<keys.length-1?',':''; comma.style.color='#333';
+    line.append(kSpan,colon,vSpan,comma);
+    lineWrap.appendChild(line);
+    let explain=''; let badge=null;
+    if(k==='exp'&&typeof v==='number'){
+      explain=`Expires at ${fmtDate(v)}`;
+      badge=document.createElement('span'); badge.id='expBadge'; badge.dataset.exp=String(v);
+      const expired=v<Math.floor(Date.now()/1000);
+      badge.className='claim-badge '+(expired?'badge-expired':'badge-valid');
+      badge.textContent=expired?`EXPIRED ${fmtRel(v)}`:`VALID ${fmtRel(v)}`;
+    }else if(k==='iat'&&typeof v==='number'){
+      explain=`Issued at ${fmtDate(v)} — ${fmtRel(v)}`;
+    }else if(k==='nbf'&&typeof v==='number'){
+      explain=`Not valid before ${fmtDate(v)} — ${fmtRel(v)}`;
+      const nowSec=Math.floor(Date.now()/1000);
+      if(v>nowSec){
+        badge=document.createElement('span'); badge.className='claim-badge badge-nbf'; badge.textContent=`NOT YET VALID — ${fmtRel(v)}`;
+      }
+    }else if(k==='sub'){explain=`Subject (user identifier)`;}
+    else if(k==='iss'){explain=`Issuer — who issued this token`;}
+    else if(k==='aud'){const audStr=Array.isArray(v)?v.join(', '):String(v); explain=`Audience — intended recipient: ${audStr}`;}
+    else if(k==='jti'){explain=`JWT ID — unique identifier for this token`;}
+    else if(k==='azp'){explain=`Authorized party — client that requested the token`;}
+    else if(k==='scope'){explain=`Scope — permissions granted`;}
+    else if(k==='tid'){explain=`Tenant ID`;}
+    else if(k==='roles'||k==='role'){explain=`Role(s) — access role`;}
+    else if(k==='name'){explain=`Name — display name`;}
+    else if(k==='email'){explain=`Email`;}
+    if(explain){
+      const eDiv=document.createElement('div'); eDiv.className='claim-explain'; eDiv.textContent=`// ${explain}`; lineWrap.appendChild(eDiv);
+    }
+    if(badge){
+      const bWrap=document.createElement('div'); bWrap.style.marginTop='6px'; bWrap.appendChild(badge); lineWrap.appendChild(bWrap);
+    }
+    wrap.appendChild(lineWrap);
+  });
+  const close=document.createElement('div'); close.textContent='}'; close.style.color='#2a2a2a'; wrap.appendChild(close);
+  container.appendChild(wrap);
+}
+function updateStats(parsed){
+  if(!parsed){ statsEl.innerHTML=''; return; }
+  const raw = parsed.cleaned;
+  const hLen = parsed.parts[0].length;
+  const pLen = parsed.parts[1].length;
+  const sLen = parsed.parts[2].length;
+  const decH = JSON.stringify(parsed.header).length;
+  const decP = JSON.stringify(parsed.payload).length;
+  statsEl.innerHTML = `<span><b>TOKEN</b> ${raw.length} chars</span><span><b>HEADER</b> ${hLen}b → ${decH}b JSON</span><span><b>PAYLOAD</b> ${pLen}b → ${decP}b JSON</span><span><b>SIG</b> ${sLen}b</span><span><b>PARTS</b> ${parsed.parts.length}</span>${parsed.hadBearer?'<span style="color:#d4c36a"><b>BEARER</b> stripped</span>':''}`;
+}
+function updateTimeline(payload){
+  const exp = payload.exp;
+  const iat = payload.iat || payload.nbf;
+  if(typeof exp!=='number' || typeof iat!=='number'){
+    timeline.classList.remove('show'); return;
+  }
+  if(exp<=iat){ timeline.classList.remove('show'); return; }
+  timeline.classList.add('show');
+  const nowSec = Math.floor(Date.now()/1000);
+  const total = exp - iat;
+  const elapsed = nowSec - iat;
+  const pct = Math.min(100, Math.max(0, (elapsed/total)*100));
+  timelineFill.style.width = pct+'%';
+  timelineNow.style.left = pct+'%';
+  const iatDate = new Date(iat*1000).toLocaleDateString('en-US',{month:'short',day:'2-digit'});
+  const expDate = new Date(exp*1000).toLocaleDateString('en-US',{month:'short',day:'2-digit'});
+  timelineLabels.innerHTML = `<span><b>iat</b> ${iatDate}</span><span><b>${pct.toFixed(1)}% elapsed</b></span><span><b>exp</b> ${expDate}</span>`;
+}
+function autoResize(){
+  const scrollH=tokenInput.scrollHeight;
+  const min=168; const max=360;
+  const newH=Math.min(Math.max(scrollH+2,min),max);
+  editorWrap.style.height=newH+'px';
+}
+function doDecode(){
+  const raw=tokenInput.value;
+  const trimmed=raw.trim();
+  const cleanedForCount = cleanToken(raw);
+  charCount.textContent=cleanedForCount?`${cleanedForCount.length} chars · ${cleanedForCount.split('.').length} parts`:'';
+  renderBackdrop(raw);
+  autoResize();
+
+  if(!trimmed){
+    errorMsg.textContent=''; hintMsg.style.display=''; editorWrap.classList.remove('is-malformed');
+    headerView.textContent='{}'; payloadView.innerHTML='<div style="color:#222">// waiting for token…</div>'; sigView.textContent='';
+    algBadge.className='alg-badge'; algBadge.innerHTML='ALG: — <span class="note">Signature cannot be verified client-side</span>';
+    document.body.classList.remove('is-expired','is-nbf'); updateStats(null); timeline.classList.remove('show');
+    history.replaceState(null,'',location.pathname);
+    return;
+  }
+
+  try{
+    const parsed=parseJwt(trimmed);
+    errorMsg.textContent=''; hintMsg.style.display='none'; editorWrap.classList.remove('is-malformed');
+    headerView.textContent=JSON.stringify(parsed.header,null,2);
+    renderPayload(parsed.payload,payloadView);
+    sigView.textContent=parsed.signature || '// empty — alg:none, unsigned';
+    updateStats(parsed);
+    updateTimeline(parsed.payload);
+
+    const alg=parsed.header.alg||'none';
+    const typ=parsed.header.typ||'';
+    const kid=parsed.header.kid?` · KID:${parsed.header.kid}`:'';
+    let badgeClass='alg-badge';
+    let extraNote='Signature cannot be verified client-side';
+    if(alg==='none'){ badgeClass='alg-badge warn'; extraNote='⚠ NONE — unsigned, do not trust'; }
+    algBadge.className=badgeClass;
+    algBadge.innerHTML=`ALG: <b>${esc(alg)}</b>${typ?` · TYP:<b>${esc(typ)}</b>`:''}${kid} <span class="note">${extraNote}</span>`;
+
+    const exp=parsed.payload.exp; const nbf=parsed.payload.nbf;
+    const nowSec=Math.floor(Date.now()/1000);
+    document.body.classList.remove('is-expired','is-nbf');
+    if(typeof exp==='number' && exp < nowSec) document.body.classList.add('is-expired');
+    if(typeof nbf==='number' && nbf > nowSec) document.body.classList.add('is-nbf');
+
+    // URL hash share (privacy: hash never sent to server)
+    try{
+      const hash = encodeURIComponent(parsed.cleaned);
+      if(location.hash.slice(1)!==hash && parsed.cleaned.length<4000){
+        history.replaceState(null,'','#'+hash);
+      }
+    }catch{}
+
+  }catch(e){
+    errorMsg.textContent=e.message||'Token is malformed';
+    if(e.hadBearer) errorMsg.textContent+=' · (Bearer stripped)';
+    hintMsg.style.display='none';
+    editorWrap.classList.add('is-malformed');
+    headerView.textContent='// malformed';
+    payloadView.innerHTML=`<div class="malformed-box">Token is malformed — ${esc(e.message||'invalid format')}<br><span style="color:#666">Expected: header.payload.signature · base64url JSON · 3 parts</span></div>`;
+    sigView.textContent='// malformed';
+    algBadge.className='alg-badge'; algBadge.innerHTML='ALG: — <span class="note" style="color:#ff4d4d">Token is malformed</span>';
+    document.body.classList.remove('is-expired','is-nbf'); updateStats(null); timeline.classList.remove('show');
+  }
+}
+
+// events
+tokenInput.addEventListener('scroll',()=>{backdrop.scrollTop=tokenInput.scrollTop; backdrop.scrollLeft=tokenInput.scrollLeft;});
+tokenInput.addEventListener('input',doDecode);
+tokenInput.addEventListener('paste',()=>setTimeout(doDecode,0));
+
+// drag & drop
+['dragenter','dragover'].forEach(ev=>{
+  editorWrap.addEventListener(ev,e=>{e.preventDefault(); editorWrap.classList.add('is-drag');});
+});
+['dragleave','drop'].forEach(ev=>{
+  editorWrap.addEventListener(ev,e=>{if(ev==='drop'){e.preventDefault(); const f=e.dataTransfer.files; if(f&&f[0]){const r=new FileReader(); r.onload=()=>{tokenInput.value=r.result.trim(); doDecode();}; r.readAsText(f[0]);} else {const t=e.dataTransfer.getData('text'); if(t){tokenInput.value=t.trim(); doDecode();}}} editorWrap.classList.remove('is-drag');});
+});
+
+// buttons
+$('clearBtn').addEventListener('click',()=>{tokenInput.value=''; doDecode(); tokenInput.focus();});
+$('pasteBtn').addEventListener('click',async()=>{
+  try{
+    const t=await navigator.clipboard.readText();
+    if(t){tokenInput.value=t.trim(); doDecode();}
+  }catch{ tokenInput.focus(); document.execCommand('paste'); }
+});
+document.querySelectorAll('.copy-btn').forEach(btn=>{
+  btn.addEventListener('click',async()=>{
+    const type=btn.dataset.copy;
+    const raw=tokenInput.value.trim();
+    if(!raw) return;
+    let text='';
+    try{
+      const p=parseJwt(raw);
+      if(type==='header') text=JSON.stringify(p.header,null,2);
+      else if(type==='header-raw') text=p.parts[0];
+      else if(type==='payload') text=JSON.stringify(p.payload,null,2);
+      else if(type==='payload-raw') text=p.parts[1];
+      else text=p.signature;
+    }catch{
+      const parts=cleanToken(raw).split('.');
+      if(type==='header') text=parts[0]||'';
+      else if(type==='header-raw') text=parts[0]||'';
+      else if(type==='payload') text=parts[1]||'';
+      else if(type==='payload-raw') text=parts[1]||'';
+      else text=parts[2]||'';
+    }
+    if(!text) return;
+    try{
+      await navigator.clipboard.writeText(text);
+      const orig=btn.textContent; btn.textContent='COPIED'; btn.classList.add('copied');
+      setTimeout(()=>{btn.textContent=orig; btn.classList.remove('copied');},1100);
+    }catch{}
+  });
+});
+
+// live badge updater
+setInterval(()=>{
+  const b=$('expBadge');
+  if(!b||!b.dataset.exp) return;
+  const exp=parseInt(b.dataset.exp,10);
+  if(isNaN(exp)) return;
+  const nowSec=Math.floor(Date.now()/1000);
+  const expired=exp<nowSec;
+  b.textContent=expired?`EXPIRED ${fmtRel(exp)}`:`VALID ${fmtRel(exp)}`;
+  b.className='claim-badge '+(expired?'badge-expired':'badge-valid');
+  if(expired) document.body.classList.add('is-expired');
+  else document.body.classList.remove('is-expired');
+  // also update timeline
+  const payloadEl = payloadView;
+  // find iat from current payload if available via timeline visible
+  if(timeline.classList.contains('show')){
+    // re-parse to get iat
+    try{
+      const p=parseJwt(tokenInput.value.trim());
+      updateTimeline(p.payload);
+    }catch{}
+  }
+},1000);
+
+// init from hash or example
+(function init(){
+  let initial = EXAMPLE_TOKEN;
+  if(location.hash && location.hash.length>20){
+    try{
+      const h = decodeURIComponent(location.hash.slice(1));
+      if(h.includes('.') && h.split('.').length===3) initial = h;
+    }catch{}
+  }
+  tokenInput.value=initial;
+  doDecode();
+  requestAnimationFrame(()=>{ tokenInput.focus(); tokenInput.setSelectionRange(tokenInput.value.length,tokenInput.value.length); autoResize(); });
+})();
+
+// keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ tokenInput.value=''; doDecode(); }
+});
+</script>
+</body>
+</html>
